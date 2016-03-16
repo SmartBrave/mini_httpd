@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "<html>"
+echo "<title>date</title>"
+echo "<body>"
+echo "<h1>today is:"
+echo `date +%y/%m/%d`
+echo "</h1>"
+echo "</body>"
+echo "</html>"
