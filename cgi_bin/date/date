@@ -8,3 +8,6 @@ echo `date +%y/%m/%d`
 echo "</h1>"
 echo "</body>"
 echo "</html>"
+echo "<form action=\"../index.html\">"
+echo "<input type=\"submit\" value=\"goto home\"/><br/>"
+echo "</form>"

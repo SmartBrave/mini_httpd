@@ -14,7 +14,7 @@
 * 主程序创建子进程来完成CGI程序,并wait子进程完成;
 * 出错时,可以返回错误码给客户端;
 * make git可以提交代码到github上(第一次须手动初始化);
-* 后台CGI分别采用C,C++,shell,pythod实现;
+* 后台CGI分别采用C,C++,shell,python实现;
 
 **若有bug,请不吝指教:)**
 **求fork,求star :)**

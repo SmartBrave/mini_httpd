@@ -15,7 +15,7 @@
 #include<string.h>
 #include<stdlib.h>
 #include<signal.h>
-#include<errno.h>
+
 
 /*********************************************
  * print msg to log file:[time]function:msg
@@ -27,8 +27,7 @@
 void PRINT_IN_LOG(const char* msg,FILE* log)
 {
     //fprintf(log,"file:%s,line:%4d,[%s:%s]:%s\n",__FILE__,__LINE__,__DATE__,__TIME__,msg);//,fflush(log);
-    //fprintf(log,"file:%s,[%s:%s]:%s\n",__FILE__,__LINE__,__DATE__,__TIME__,msg);//,fflush(log);
-    fwrite(msg,1,strlen(msg),log);
+    fprintf(log,"file:%s,[%s:%s]:%s\n",__FILE__,__LINE__,__DATE__,__TIME__,msg);//,fflush(log);
 }
 int startup(const char* ip,short *port,FILE* log);
 void* accept_request(void* sock,FILE* lgo);
@@ -76,7 +75,8 @@ int main(int argc,char* argv[])
 {
     signal(SIGPIPE,handler);
     FILE* log=fopen("./log/httpd_log.txt","a+");
-    //PRINT_IN_LOG("fopen log",log);
+    PRINT_IN_LOG("fopen log",log);
+    fprintf(log,"\n");
     const char* ip=NULL;
     unsigned short port=0;
     int server_sock=0,client_sock=0;
@@ -98,6 +98,7 @@ int main(int argc,char* argv[])
     //        }
     //        else
     //        {
+    //            fprintf(stderr,"IP is error\n");
     //            exit(2);
     //        }
     //    case 2://IP is given,but port is not given
@@ -109,6 +110,7 @@ int main(int argc,char* argv[])
     //        }
     //        else
     //        {
+    //            fprintf(stderr,"IP is error\n");
     //            exit(1);
     //        }
     //        break;
@@ -128,7 +130,7 @@ int main(int argc,char* argv[])
             perror("accept");
             exit(7);
         }
-        //PRINT_IN_LOG("accept a new client",log);
+        //PRINT_IN_LOG("accept a new client",log)
         accept_request((void*)client_sock,log);
         //ret=pthread_create(&tid,NULL,accept_request,(void*)client_sock);
         //if(ret!=0)
@@ -138,9 +140,9 @@ int main(int argc,char* argv[])
         //}
     }
     close(server_sock);//close server
-    //PRINT_IN_LOG("close server",log);
+    PRINT_IN_LOG("close server",log)
     fclose(log);
-    //PRINT_IN_LOG("fclose log",log);
+    PRINT_IN_LOG("fclose log",log)
     return 0;
 }
 
@@ -262,7 +264,7 @@ int get_line(int fd,char* buf,int max_len)
 
 void* accept_request(void* arg,FILE* log)
 {
-    //pthread_detach(pthread_self());
+    pthread_detach(pthread_self());
     int sock=(int)arg;
     int cgi=0;
     char method[_COMM_SIZE_];
@@ -309,12 +311,9 @@ void* accept_request(void* arg,FILE* log)
         i++;
     if(url[i]=='?')
     {
+        cgi=1;
         url[i]='\0';
-        if(url[i+1]!='\0')
-        {
-            cgi=1;
-            query_string=url+i+1;
-        }
+        query_string=url+i+1;
     }
     if(url[strlen(url)-1]=='/')
     {
@@ -372,7 +371,7 @@ void* accept_request(void* arg,FILE* log)
         }
     }
     close(sock);
-    //PRINT_IN_LOG("close client",log);
+    PRINT_IN_LOG("close client",log)
     return NULL;
 }
 void clear_header(int sock)
@@ -441,9 +440,9 @@ void exe_cgi(int sock,const char *path,const char*method,const char*query_string
         //dup2(cgi_input[0],0);
         //dup2(cgi_output[1],1);
         dup2(sock,0);
-        //PRINT_IN_LOG("dup2 sock,0",log);
+        PRINT_IN_LOG("dup2 sock,0",log)
         dup2(sock,1);
-        //PRINT_IN_LOG("dup2 sock,1",log);
+        PRINT_IN_LOG("dup2 sock,1",log)
         memset(method_env,'\0',sizeof(method_env));
         sprintf(method_env,"REQUEST_METHOD=%s\n",method);
         putenv(method_env);
@@ -492,7 +491,7 @@ void echo_html(int sock,const char* path,ssize_t size,FILE* log)
         return;
     }
     int fd=open(path,O_RDONLY);
-    //PRINT_IN_LOG("open html",log);
+    PRINT_IN_LOG("open html",log)
     if(fd<0)
     {
         echo_error_to_client(sock,500);
@@ -501,19 +500,18 @@ void echo_html(int sock,const char* path,ssize_t size,FILE* log)
     char buf[_COMM_SIZE_];
     memset(buf,'\0',sizeof(buf));
     strncpy(buf,"HTTP/1.1",strlen("HTTP/1.1")+1);
-    //strcat(buf," 200 OK");
+    strcat(buf," 200 OK");
     strcat(buf,"\r\n\r\n");
     send(sock,buf,strlen(buf),0);
     //send(sock,"\r\n",strlen("\r\n"),0);
     if(sendfile(sock,fd,NULL,size)<0)
     {
         close(fd);
-        printf("error:%s\n",strerror(errno));
-        //PRINT_IN_LOG("close html",log);
+        PRINT_IN_LOG("close html",log)
         return;
     }
     close(fd);
-    //PRINT_IN_LOG("close html",log);
+    PRINT_IN_LOG("close html",log)
 }
 /******************************************************ot:*
  * Give a client a 400 bad request status message.
@@ -523,12 +521,12 @@ void bad_request(int sock)
     char buf[1024];
     sprintf(buf,"HTTP/1.1 400 BAD REQUEST\r\n");
     send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"Content_type: text/html\r\n");
-    //send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"\r\n");
-    //send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"<p>you enter message is a bad request!\r\n</p>");
-    //send(sock,buf,sizeof(buf),0);
+    sprintf(buf,"Content_type: text/html\r\n");
+    send(sock,buf,sizeof(buf),0);
+    sprintf(buf,"\r\n");
+    send(sock,buf,sizeof(buf),0);
+    sprintf(buf,"<p>you enter message is a bad request!\r\n</p>");
+    send(sock,buf,sizeof(buf),0);
 }
 /*********************************************************
  * Give a client a 404 not found status message.

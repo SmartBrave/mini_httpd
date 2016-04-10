@@ -14,7 +14,7 @@ LIB=
 all:$(SER_BIN) $(CLI_BIN) cgi
 
 $(SER_BIN):$(SER_SRC)
-	$(CC) $(FLAGS) $@ $^ $(LDFLAGS) -D_DEBUG_ -g
+	$(CC) $(FLAGS) $@ $^ $(LDFLAGS) -D_DEBUG_ -g -rdynamic
 $(CLI_BIN):$(CLI_SRC)
 	$(CC) $(FLAGS) $@ $^ $(LDFLAGS) -D_DEBUG_ -g
 

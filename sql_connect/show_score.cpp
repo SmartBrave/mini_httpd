@@ -185,6 +185,9 @@ int main()
     //}
     //else
     //    return 1;
+    cout<<"<form action=\"../index.html\">"<<endl;
+    cout<<"<input type=\"submit\" value=\"goto home\"/><br/>"<<endl;
+    cout<<"</form>"<<endl;
     cout<<"</body>"<<endl;
     printf("</html>\n");
     return 0;
