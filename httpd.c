@@ -117,7 +117,7 @@ int main(int argc,char* argv[])
     //        break;
     //}
     ip="192.168.1.2";
-    port=8080;
+    port=8081;
     server_sock=startup(ip,&port,log);
     printf("httpd running on %s:%d\n",ip,port);
     while(1)

@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<unistd.h>
 #include<vector>
 #include"sql_connect.h"
 #include<stdlib.h>
