@@ -1,5 +1,7 @@
-# mini_httpd
-### 基于TCP/IP和http协议的小型Web服务器
+#My mini Web Server
+
+高性能服务器，使用epoll实现。应用为成绩查询系统。
+
 * 主要实现了GET方法;
 * 传输层和网络层使用TCP/IP协议,应用层使用http协议,并使用socket相关函数实现;
 * 启动服务器时
@@ -21,4 +23,4 @@
 
 |作者|创建日期|最后修改日期|我的邮箱|
 |----|--------|------------|--------|
-|Smart|20160302|20160316|SmartBraveCoder@gmail.com|
+|Smart|20160302|20160727|SmartBraveCoder@gmail.com|

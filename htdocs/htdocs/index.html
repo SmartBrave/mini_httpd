@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- this is a test html to exercise! -->
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="test" content="HTML">
+        <meta name="SmartBrave" content="test">
+        <!--
+        <meta http-equiv="refresh" content="30">
+        -->
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>杨智勇的个人站点</title>
+    </head>
+    <body>
+        <a id="top"></a>
+        <div id="container" style="width:100%" margin="0px">
+            <div id="header" style="background-color:#FFA500;width:100%;height:100px;">
+                <h1 align="center">Welcome to here!</h1>
+            </div>
+            <div id="important" style="background-color:#FFD700;height:800px;width:33%;float:left;">
+                <!--
+                <script>document.write("hello world!")</script>
+                <noscript>Sorry,your browser does not support JaveScript!</noscript>
+                <button type="button" onclick="myfunction()">Click Me!</button>
+                -->
+                <form name="login" action="./cgi_bin/login" method="post" align="center">
+                    <input type="text" name="username" placeholder="用户名"><br/>
+                    <input type="password" name="password" placeholder="密码"><br/>
+                    <input type="checkbox" name="autologin" value="autologin" align="left">下次自动登陆
+                    <a align="right" href="./findPassword.html">登陆遇到问题</a><br/>
+                    <input type="submit" value="登陆"><br/>
+                </form>
+                <p style="color:red;">
+                功能大全:
+                <ul>
+                    <li>
+                    <a href="./fastmail.html">查快递</a>
+                    </li>
+                    <li>
+                    <a href="./weather.html">查天气</a>
+                    </li>
+                    <li>
+                    <a href="./areacode.html">查区号</a>
+                    </li>
+                </ul>
+                <p style="color:red;">
+                待办事项:
+                <ul>
+                    <li>吃饭</li>
+                    <li>睡觉</li>
+                    <li>打豆豆</li>
+                </ul>
+                </p>
+                <p style="cloor:green;">
+                由于这个网站目前还在初期开发阶段，所以有时可能会不太稳定。如果出现这种情况，请您等待5分钟后再次刷新即可！<br/>
+                给您带来的不便，我深感抱歉！<br/>
+                感谢您的访问！
+                </p>
+            </div>
+            <div id="content" style="background-color:#EEEEEE;height:800px;width:67%;float:right;">
+                <!--
+                <img src="img/1.jpg" width="100%" height="100%" alt="can not show img">
+                -->
+                <video width="100%" height=100% controls autoplay>
+                    <source src="movie.mp4" type="video/mp4">
+                    你的浏览器不支持video标签.
+                </video>
+            </div>
+            <div id="footer" style="background-color:#FFA500:clear:both;text-align:center;width:100%;">
+                <table border="1" align="center">
+                    <caption>友情链接</caption>
+                    <tr>
+                        <td>
+                            <a href="http://www.baidu.com">百度友链</a>
+                        </td>
+                        <td>
+                            <a href="http://www.google.com" target="_blank">Google友链</a>
+                        </td>
+                        <td>
+                            <a href="http://m.kuaidi100.com" target="_blank">快递查询</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        &copysbrave.cn 陕ICP备16005712号
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <a href="#top">返回顶部</a>
+    </body>
+</html>

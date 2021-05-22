@@ -1,16 +1,17 @@
-LIB_PATH=/usr/lib/mysql
-LIB=mysqlclient
-
 .PHONY:all
-all:show_score
+all:libsql.a
 
-show_score:show_score.cpp
-	g++ -o $@ $^ -L$(LIB_PATH) -l$(LIB) -g
+libsql.a:sql.cpp
+	g++ -c sql.cpp -L/usr/lib/mysql -lmysqlclient -g
+	ar -crv libsql.a sql.o
 
 .PHONY:output
 output:all
-	cp show_score ../output/htdocs/cgi_bin 
+	#cp libsql.a /usr/lib
+	#cp sql.h /usr/include
+	#cp libsql.a ../output/htdocs/cgi_bin
+	#cp sql.h ../output/htdocs/include
 
 .PHONY:clean
 clean:
-	rm -rf show_score
+	rm -rf libsql.a sql.o

@@ -1,199 +1,52 @@
-/* Smart's webserver */
-/* This is a simple webserver.
- * Created November 2016 by SmartBrave Blackstone.
- */
-#include<sys/socket.h>
 #include<stdio.h>
+#include<assert.h>
+#include<string.h>
+#include<errno.h>
+#include<stdlib.h>
 #include<regex.h>
 #include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<sys/epoll.h>
+#include<pthread.h>
+#include<sys/stat.h>
+#include<unistd.h>
 #include<sys/stat.h>
 #include<fcntl.h>
-#include<pthread.h>
-#include<netinet/in.h>
-#include<arpa/inet.h>
-#include<unistd.h>
-#include<string.h>
-#include<stdlib.h>
 #include<signal.h>
-#include<errno.h>
+#include<sys/wait.h>
+#include<sys/sendfile.h>
+#include<arpa/inet.h>
 
-/*********************************************
- * print msg to log file:[time]function:msg
- * *****************************************/
-#define ISSPACE(ch) (ch==' '?1:0)//   () !!!
-#define SERVER_STRING "Server: http/0.1.0\r\n"
-#define _COMM_SIZE_ 1024
+#define CONFIG_SIZE 128
+#define STRING_SIZE 1024
+#define FILE_SIZE 5242880
+const char* const ConfigName="./conf/config";
+const char* const LogName="./log/log";
+FILE* log_file=NULL;
+#ifdef LOG
+char log_buf[1024];
+#endif
 
-void PRINT_IN_LOG(const char* msg,FILE* log)
-{
-    //fprintf(log,"file:%s,line:%4d,[%s:%s]:%s\n",__FILE__,__LINE__,__DATE__,__TIME__,msg);//,fflush(log);
-    //fprintf(log,"file:%s,[%s:%s]:%s\n",__FILE__,__LINE__,__DATE__,__TIME__,msg);//,fflush(log);
-    fwrite(msg,1,strlen(msg),log);
-}
-int startup(const char* ip,short *port,FILE* log);
-void* accept_request(void* sock,FILE* lgo);
-int regex(const char *string,const char* pattern);
 void clear_header(int sock);
-void exe_cgi(int sock,const char *path,const char*method,const char*query_string,FILE* log);
-void echo_html(int sock,const char* path,ssize_t size,FILE* log);
-void cannot_execute(int sock);
-void echo_error_to_client(int sock,int error_code);
-int get_line(int fd,char* buf,int max_len);
-void bad_request(int sock);
-void not_found(int client);
-void cannot_execute(int sock);
-void unimplemented(int sock);
+static const char* get_config(const char* head,char* buf);
+static int start_up(const char* ip,const char* port);
+static int  accept_request(int sock);
+static int get_line(int sock,char* buf,int size);
+void echo_error_to_client(int sock,const char* error);
+void echo_html(int sock,const char* path,int size);
+void exe_cgi(int sock,const char* method,const char* path,const char* query_string);
+void exe_php(const char* code,char* outresult);
+int setnonblocking(int fd);
+inline static int write_log(const char* func,int line, const char* ptr);
 
-/*****************************************************
- * main exit status:
- * 0:
- * 1: IP is error!
- * 2: port is error!
- * 3: create socket field!
- * 4: bind field!
- * 5: create port field!
- * 6: listen field!
- * 7: create connection field!
- * 8: create thread field!
- * 9:
- * 10:
- * 11:
- * 12:
- * 13:
- * 14:
- * 15:
- * 16:
- * 17:
- * **************************************************/
-
-void handler(int arg)
+void handler(int sig)
 {
-    printf("file: %s\nline: %d\nfunction: %s\n",__FILE__,__LINE__,__FUNCTION__);
-    exit(3);
-}
-
-int main(int argc,char* argv[])
-{
+#ifdef DEBUG
+    printf("AAAAAAAAAAAAAAAAAAAAAAAAA____%d___AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",sig);
+#endif
     signal(SIGPIPE,handler);
-    FILE* log=fopen("./log/httpd_log.txt","a+");
-    //PRINT_IN_LOG("fopen log",log);
-    const char* ip=NULL;
-    unsigned short port=0;
-    int server_sock=0,client_sock=0;
-    int client_sock_len=sizeof(client_sock);
-    int ret=0;
-    pthread_t tid;
-
-    //switch(argc)
-    //{
-    //    case 1://IP and port are not given by caller
-    //        ip="INADDR_ANY";
-    //        break;
-    //    case 3://IP and port are given by caller
-    //           //IP is seven in case 2 because have no break
-    //        ret=regex(argv[2]/*port*/,"[1-9]{1}[0-9]{1,}");
-    //        if(ret==0)
-    //        {
-    //            port=atoi(argv[2]);
-    //        }
-    //        else
-    //        {
-    //            exit(2);
-    //        }
-    //    case 2://IP is given,but port is not given
-    //        ret=regex(argv[1]/*ip*/,"([1-9]{1}[0-9]{0,2}){1}(\\.[0-9]{1,3}){3}");
-    //        if(ret==0)
-    //        {
-    //            ip=argv[1];
-    //            //inet_aton(argv[1],&ipn);
-    //        }
-    //        else
-    //        {
-    //            exit(1);
-    //        }
-    //        break;
-    //    default:
-    //        ;
-    //        break;
-    //}
-    ip="192.168.1.2";
-    port=8081;
-    server_sock=startup(ip,&port,log);
-    printf("httpd running on %s:%d\n",ip,port);
-    while(1)
-    {
-        client_sock=accept(server_sock,(struct sockaddr*)&client_sock,&client_sock_len);
-        if(client_sock==-1)
-        {
-            perror("accept");
-            exit(7);
-        }
-        //PRINT_IN_LOG("accept a new client",log);
-        accept_request((void*)client_sock,log);
-        //ret=pthread_create(&tid,NULL,accept_request,(void*)client_sock);
-        //if(ret!=0)
-        //{
-        //    perror("pthread_create()");
-        //    exit(8);
-        //}
-    }
-    close(server_sock);//close server
-    //PRINT_IN_LOG("close server",log);
-    fclose(log);
-    //PRINT_IN_LOG("fclose log",log);
-    return 0;
 }
-
-
-
-int startup(const char* ipc,short *port,FILE* log)
-{
-    if(ipc==NULL||port==NULL)
-        return -1;
-    struct sockaddr_in local;
-    int ret=0;
-    int flag=1;
-    int local_len=sizeof(local);
-    int sock=socket(AF_INET,SOCK_STREAM,0);
-    setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag));
-    if(sock==-1)
-    {
-        perror("socket()");
-        exit(3);
-    }
-    memset(&local,0,local_len);
-    local.sin_family=AF_INET;
-    local.sin_port=htons(*port);
-    if(strcasecmp(ipc,"INADDR_ANY")==0)
-    {
-        local.sin_addr.s_addr=htonl(INADDR_ANY);
-    }
-    else
-    {
-        local.sin_addr.s_addr=inet_addr(ipc);
-    }
-    if(ret=bind(sock,(struct sockaddr*)&local,local_len),ret!=0)
-    {
-        perror("bind()");
-        exit(4);
-    }
-    if(*port==0)
-    {
-        if(getsockname(sock,(struct sockaddr*)&local,&local_len)==-1)
-        {
-            perror("getsockname()");
-            exit(5);
-        }
-        *port=ntohs(local.sin_port);
-    }
-    if(listen(sock,1024)<0)
-    {
-        perror("listen()");
-        exit(6);
-    }
-    return sock;
-}
-
 
 /**********************************************
 *  match a regular expression
@@ -220,394 +73,731 @@ int regex(const char *string,const char* pattern)
     }
 }
 
-/*********************************************************
- * get a line from fd,and save the data in the buffer
- * pointer by buf
- * return val:return the bytes of real read
- *            on error,return -1;
- * *****************************************************/
-int get_line(int fd,char* buf,int max_len)
+int main()
 {
-    if(buf==NULL||max_len<0)
-        return -1;
-    int i=0,n=0;
-    char c=0;
-    while(i<max_len-1&&c!='\n')
+#ifdef LOG
+    log_file=fopen(LogName,"a");
+    if(log_file==NULL)
     {
-        n=recv(fd,&c,1,0);
-        if(n>0)
+        perror("open log file fail!");
+        exit(1);
+    }
+    sprintf(log_buf,"\nThis server is started![DATE: %s,TIME: %s]",__DATE__,__TIME__);
+    fwrite(log_buf,1,strlen(log_buf),log_file);
+#endif
+    signal(SIGPIPE,handler);
+    //signal(SIGPIPE,SIG_IGN);
+    char ip[STRING_SIZE];
+    char port[STRING_SIZE];
+    int ret;
+    int i,n;
+    pthread_t tid;
+    int new_sock;
+    struct sockaddr_in client_sock;
+    socklen_t client_sock_len=sizeof(client_sock);
+
+    get_config("IP",ip);
+    get_config("port",port);
+#ifdef DEBUG
+    //printf("ip is %s\n",ip);
+    //printf("port is %d\n",atoi(port));
+#endif
+    ret=regex(ip,"([1-9]{1}[0-9]{0,2}){1}(\\.[0-9]{1,3}){3}");
+    if(ret!=0)
+    {
+        printf("IP is error\n");
+        exit(1);
+    }
+    ret=regex(port,"[1-9]{1}[0-9]{0,4}");
+    if(ret!=0)
+    {
+        printf("port is error!\n");
+        exit(1);
+    }
+    int listen_sock=start_up(ip,port);
+    if(listen_sock==-1)
+    {
+        perror("start_up");
+        exit(1);
+    }
+#ifdef DEBUG
+    printf("httpd running on %s:%s\n",ip,port);
+#endif
+#ifdef LOG
+    sprintf(log_buf,"httpd running on %s:%s[DATE: %s,TIME: %s]\n",ip,port,__DATE__,__TIME__);
+    fwrite(log_buf,1,strlen(log_buf),log_file);
+#endif
+#ifdef MULTITHREAD
+#ifdef DEBUG
+    printf("httpd running on block mode!\n");
+#endif
+    while(1)
+    {
+        new_sock=accept(listen_sock,(struct sockaddr*)&client_sock,&client_sock_len);
+        if(new_sock<0)
         {
-            if(c=='\r')
+            perror("accept");
+            exit(1);
+        }
+        tid=pthread_create(&tid,NULL,(void*(*)(void*))accept_request,(void*)&new_sock);
+        if(tid<0)
+        {
+            perror("pthread_create");
+            close(new_sock);
+            exit(1);
+        }
+        //可以创建一个新的线程来detach,join并close sock;
+        pthread_detach(tid);
+    }
+#endif //MULTITHREA
+#ifdef EPOLL
+#ifdef DEBUG
+    printf("httpd running on epoll mode!\n");
+#endif
+    int efd;
+    struct epoll_event event;
+    struct epoll_event* events;
+    char max_epoll_size[STRING_SIZE];
+    get_config("max_epoll_size",max_epoll_size);
+    efd=epoll_create(atoi(max_epoll_size));
+    if(efd<0)
+    {
+        perror("epoll_create");
+        exit(1);
+    }
+    event.data.fd=listen_sock;
+    event.events=EPOLLIN | EPOLLET;
+    ret=epoll_ctl(efd,EPOLL_CTL_ADD,listen_sock,&event);
+    if(ret<0)
+    {
+        perror("epoll_ctl");
+        exit(1);
+    }
+    setnonblocking(efd);
+    events=(struct epoll_event*)calloc(atoi(max_epoll_size),sizeof(event));
+    while(1)
+    {
+again:
+        n=epoll_wait(efd,events,atoi(max_epoll_size),-1);
+        if(n<0)
+        {
+            if(errno==EINTR)
+                goto again;
+            perror("epoll_wait");
+            exit(1);
+        }
+        for(i=0;i<n;++i)
+        {
+            if((events[i].events & EPOLLERR) ||
+               (events[i].events & EPOLLHUP) /*||
+               !(events[i].events & EPOLLIN)*/)
             {
-                n=recv(fd,&c,1,MSG_PEEK);
-                if(n>0&&c=='\n')
+                perror("epoll_wait");
+                close(events[i].data.fd);
+                continue;
+            }
+            else if(listen_sock==events[i].data.fd)
+            {
+                new_sock=accept(listen_sock,(struct sockaddr*)&client_sock,&client_sock_len);
+                if(new_sock<0)
                 {
-                    recv(fd,&c,1,0);
+                    perror("accept");
+                    exit(1);
                 }
-                else
+                setnonblocking(new_sock);
+                event.data.fd=new_sock;
+                event.events=EPOLLIN | EPOLLET;
+                ret=epoll_ctl(efd,EPOLL_CTL_ADD,new_sock,&event);
+                if(ret<0)
                 {
-                    c='\n';
+                    perror("epoll_ctl");
+                    exit(1);
                 }
             }
-            buf[i++]=c;
+            else if(events[i].events&EPOLLIN)
+            {
+                new_sock=events[i].data.fd;
+                ret=epoll_ctl(efd,EPOLL_CTL_DEL,new_sock,&event);
+                if(ret<0)
+                {
+                    perror("epoll_ctl");
+                    exit(1);
+                }
+                if(ret=accept_request(events[i].data.fd)<0)
+                {
+#ifdef DEBUG
+                    printf("accept_request errno: %d\n",ret);
+#endif
+                    perror("accept_request");
+                }
+                close(events[i].data.fd);
+                //event.data.fd=new_sock;
+                //event.events=EPOLLIN | EPOLLET;
+                //close(new_sock);
+            }
+            else if(events[i].events&EPOLLOUT)
+            {
+            }
+            else
+            {
+            }
+        }
+    }
+    free(events);
+#endif
+#ifdef LOG
+    fclose(log_file);
+#endif
+    return 0;
+}
+
+static int 
+accept_request(int sock)
+{
+    char *method=NULL,*url=NULL,*query_string=NULL,*http_version=NULL;
+    char buf[STRING_SIZE];
+    char tmp[STRING_SIZE];
+    char path[STRING_SIZE];
+    int cgi=0;
+    memset(buf,'\0',sizeof(buf));
+    memset(path,'\0',sizeof(path));
+    int size;
+    size=get_line(sock,buf,sizeof(buf));
+    if(size<1)
+    {
+        printf("size: %d,buf: %p,sizeof(buf):%d\n",size,buf,sizeof(buf));
+        echo_error_to_client(sock,"400");
+        perror("get_line");
+        return -1;
+    }
+    //while(1)
+    //{
+    //    size=get_line(sock,tmp,sizeof(tmp));
+    //    if(size<1)
+    //    {
+    //        echo_error_to_client(sock,"400");
+    //        close(sock);
+    //        return -2;
+    //    }
+    //    tmp[size]='\0';
+    //    if(size==1&&tmp[size-1]=='\n')
+    //    {
+    //        break;
+    //    }
+    //    else
+    //    {
+    //        strcat(buf," ");
+    //        strcat(buf,tmp);
+    //    }
+    //}
+    
+    //sscanf(buf,"%s %s %s",method,url,http_version);
+    
+    char* p=buf;
+    while(*p!='\0'&&*p++==' ');
+    method=p-1;
+    while(*p!='\0'&&*p++!=' ');
+    *(p-1)='\0';
+#ifdef DEBUG
+    printf("method: %s\n",method);
+#endif
+
+    while(*p!='\0'&&*p++==' ');
+    url=p-1;
+    while(*p!='\0'&&*p++!=' ');
+    *(p-1)='\0';
+#ifdef DEBUG
+    printf("url: %s\n",url);
+#endif
+
+    while(*p!='\0'&&*p++==' ');
+    http_version=p-1;
+    while(*p!='\0'&&*p++!=' ');
+    *(p-1)='\0';
+#ifdef DEBUG
+    printf("http_version: %s\n",http_version);
+#endif
+    //identify the correct path
+    sprintf(path,"htdocs");
+    int i=0,j=strlen("htdocs");
+    while(url[i]!='\0'&&url[i]!='?')
+    {
+        path[j]=url[i];
+        i++;
+        j++;
+    }
+    path[j]='\0';
+#ifdef DEBUG
+    printf("path: %s\n",path);
+#endif
+    if(url[i]=='?')
+    {
+        cgi=1;
+        url[i]='\0';
+        query_string=url+i+1;
+#ifdef DEBUG
+    printf("query_string: %s\n",query_string);
+#endif
+    }
+#ifdef DEBUG
+    printf("\n");
+#endif
+    struct stat st;
+    if(stat(path,&st)<0)
+    {
+        clear_header(sock);
+        echo_error_to_client(sock,"404");
+        return 1;
+    }
+    else
+    {
+        if(S_ISDIR(st.st_mode))
+        {
+            strcat(path,"index.html");
+        }
+        else if((st.st_mode & S_IXUSR)||
+                (st.st_mode & S_IXGRP)||
+                (st.st_mode & S_IXOTH))
+        {
+            cgi=1;
         }
         else
         {
-            c='\n';
+            clear_header(sock);
+            if(strstr(path,".php")!=NULL)
+            {
+                FILE* fp=fopen(path,"r");
+                char *PhpCode=(char*)malloc(sizeof(char)*FILE_SIZE);//5M
+                char *Result=(char*)malloc(sizeof(char)*FILE_SIZE);//5M
+                int i;
+                fread(PhpCode,1,FILE_SIZE,fp);
+                fclose(fp);
+                exe_php(PhpCode,Result);
+                printf("phpcode:%s\n",PhpCode);
+                printf("result:%s\n",Result);
+                sprintf(Result,"200 OK\r\n\r\n<html>%s</html>",Result);
+                send(sock,Result,strlen(Result),0);
+                free(PhpCode);
+                free(Result);
+                return 0;
+            }
+        }
+    }
+    if(stat(path,&st)<0)
+    {
+        clear_header(sock);
+        echo_error_to_client(sock,"404");
+        return 1;
+    }
+    if(strcasecmp(method,"GET")==0)
+    {
+        if(cgi==1)
+        {
+            exe_cgi(sock,method,path,query_string);
+        }
+        else
+        {
+            clear_header(sock);
+            echo_html(sock,path,st.st_size);
+        }
+    }
+    else if(strcasecmp(method,"POST")==0)
+    {
+        exe_cgi(sock,method,path,query_string);
+    }
+    else if(strcasecmp(method,"HEAD")==0)
+    {
+        echo_error_to_client(sock,"200");
+    }
+    //else if(strcasecmp(http_version,"http/1.1") && strcasecmp(method,"PUT")==0)
+    //{
+    //    cig=1;
+    //}
+    //else if(strcasecmp(http_version,"http/1.1") && strcasecmp(method,"DELETE")==0)
+    //{
+    //}
+    //else if(strcasecmp(http_version,"http/1.1") && strcasecmp(method,"TRACE")==0)
+    //{
+    //}
+    //else if(strcasecmp(http_version,"http/1.1") && strcasecmp(method,"CONNECT")==0)
+    //{
+    //}
+    //else if(strcasecmp(http_version,"http/1.1") && strcasecmp(method,"OPTIONS")==0)
+    //{
+    //}
+    else
+    {
+        echo_error_to_client(sock,"501");
+    }
+    //close(sock);
+    return 0;
+}
+
+void 
+exe_cgi(int sock,const char* method,const char* path,const char* query_string)
+{
+    //int tochild[2];
+    //int tofather[2];
+    //int ret=pipe(tochild);
+    //if(ret<0)
+    //{
+    //    perror("pipe_tochlid");
+    //    exit(1);
+    //}
+    //ret=pipe(tofather);
+    //if(ret<0)
+    //{
+    //    perror("pipe_tofather");
+    //    exit(1);
+    //}
+    char buf[STRING_SIZE];
+    int numchars=0;
+    int content_length=0;
+    if(strcasecmp(method,"get")==0)
+    {
+        clear_header(sock);
+    }
+    else if(strcasecmp(method,"post"))
+    {
+        do
+        {
+            memset(buf,'\0',sizeof(buf));
+            numchars=get_line(sock,buf,sizeof(buf));
+            if(strncasecmp(buf,"Content-Length:",strlen("Content-Length:"))==0)
+            {
+                content_length=atoi(&buf[strlen("Content-Length:")+1]);
+            }
+        }
+        while(numchars>0&& strcmp(buf,"\n"));
+        if(content_length==-1)
+        {
+            return ;
+        }
+    }
+    pid_t id=fork();
+    if(id==0)//child
+    {
+        //close(tochild[1]);
+        //close(tofather[0]);
+
+        //dup2(0,tochild[0]);
+        //dup2(1,tofather[1]);
+        dup2(sock,0);
+        dup2(sock,1);
+        //为什么putenv函数需要将method和query_string放到不同的buf里才可以成功put到env里面呢？否则后面put的会覆盖前面的？
+        //char buf_method[STRING_SIZE];
+        if(strcasecmp(method,"get"))
+        {
+            char buf_query_string[STRING_SIZE];
+            sprintf(buf_query_string,"QUERY_STRING=%s\n",query_string);
+            putenv(buf_query_string);
+        }
+        else if(strcasecmp(method,"post"))
+        {
+            char buf_query_string[STRING_SIZE];
+            sprintf(buf_query_string,"QUERY_STRING=%s\n",query_string);
+            putenv(buf_query_string);
+            char buf_content_length[STRING_SIZE];
+            sprintf(buf_content_length,"CONTENT_LENGTH=%s\n",content_length);
+            putenv(buf_content_length);
+        }
+        //sprintf(buf_method,"METHOD=%s\n",method);
+        //putenv(buf_method);
+        execl(path,path,NULL);
+        exit(1);
+    }
+    else if(id>0)//father
+    {
+        //close(tochild[0]);
+        //close(tofather[1]);
+        //char buf[STRING_SIZE];
+        //while(1)
+        //{
+        //    ret=recv(tofather[0],buf,sizeof(buf)-1,0);
+        //    if(ret>0)
+        //    {
+        //        buf[ret]='\0';
+        //        send(sock,buf,sizeof(buf)-1,0);
+        //    }
+        //    else
+        //    {
+        //        break;
+        //    }
+        //}
+        //可以让一个线程来wait子进程
+        waitpid(id,NULL,0);
+        //close(tochild[1]);
+        //close(tofather[0]);
+    }
+    else
+    {
+        perror("fork");
+        exit(1);
+    }
+}
+
+void 
+echo_html(int sock,const char* path,int size)
+{
+    if(path==NULL||size<0)
+    {
+        echo_error_to_client(sock,"500");
+        return;
+    }
+    char buf[STRING_SIZE];
+    int fd=open(path,O_RDONLY);
+    if(fd<0)
+    {
+        write_log(__FUNCTION__,__LINE__,path);
+        write_log(__FUNCTION__,__LINE__,"open path fail!");
+        printf("AAAAAAAAAAAAAAAAAAAA\n");
+        echo_error_to_client(sock,"500");
+        perror("open fd");
+        close(fd);
+        return;
+    }
+    echo_error_to_client(sock,"200");
+    if(sendfile(sock,fd,NULL,size)<0)
+    {
+        write_log(__FUNCTION__,__LINE__,"sendfile is fail!");
+        perror("sendfile is fail!");
+    }
+#ifdef DEBUG
+    printf("sendfiel chenggong!\n");
+#endif
+    close(fd);
+}
+
+void
+clear_header(int sock)
+{
+    char buf[STRING_SIZE];
+    int size;
+    do
+    {
+        size=get_line(sock,buf,sizeof(buf));
+#ifdef DEBUG
+        //printf("%s",buf);
+#endif
+    }
+    while(size>0 && strcmp(buf,"\n")!=0);
+}
+
+void
+echo_error_to_client(int sock,const char* error)
+{
+    if(atoi(error)==404)
+    {
+#ifdef DEBUG
+        printf("4040404040404040040\n");
+#endif
+        ///////////////////////
+        //char* path="/home/Smart/code/C/myhttpd/output/htdocs/img/404.jpg";
+        char* path="./htdocs/img/404.jpg";
+        struct stat st;
+        if(stat(path,&st)<0)
+        {
+            echo_error_to_client(sock,"500");
+#ifdef DEBUG
+            printf("path: %s\n",path);
+#endif
+            perror("stat");
+            //close(sock);
+            return;
+        }
+        int fd=open(path,O_RDONLY);
+        if(fd<0)
+        {
+            echo_error_to_client(sock,"500");
+            perror("open fd");
+            close(fd);
+            return;
+        }
+        echo_error_to_client(sock,"200");
+        if(sendfile(sock,fd,NULL,st.st_size)<0)
+        {
+            perror("sendfile");
+        }
+        //pid_t id=fork();
+        //if(id==0)
+        //{
+        //    dup2(sock,0);
+        //    dup2(sock,1);
+        //    execl("htdocs/cgi_bin/echo_404","htdocs/cgi_bin/echo_404");
+        //    return;
+        //}
+        //else if(id==1)
+        //{
+        //    waitpid(id,NULL,0);
+        //    return;
+        //}
+        //else
+        //{
+        //    perror("fork");
+#ifdef DEBUG
+        //    printf("forkforkforkforkforkforkforkforkforkfork\n");
+#endif
+        //    return;
+        //}
+    }
+    else
+    {
+        char buf[STRING_SIZE];
+        char stat[STRING_SIZE];
+        char version[STRING_SIZE];
+        memset(buf,'\0',sizeof(buf));
+        memset(stat,'\0',sizeof(stat));
+        memset(version,'\0',sizeof(version));
+        get_config("HTTP_VERSION",version);
+        get_config(error,stat);
+        sprintf(buf,"%s %s %s\r\n\r\n",version,error,stat);
+        send(sock,buf,strlen(buf),0);
+    }
+}
+
+static int 
+get_line(int sock,char* buf,int size)
+{
+    if(buf==NULL||size<=0)
+        return -1;
+    char ch='\0';
+    int n=0;
+    int i=0;
+    while(i<size-1 && '\n'!=ch)
+    {
+        n=recv(sock,&ch,1,0);
+        if(n>0)
+        {
+            if('\r'==ch)
+            {
+                n=recv(sock,&ch,1,MSG_PEEK);
+                if(n>0&&'\n'==ch)
+                {
+                    recv(sock,&ch,1,0);
+                }
+                else
+                {
+                    ch='\n';
+                }
+            }
+            buf[i++]=ch;
+        }
+        else
+        {
+            printf("i= %d\n",i);
+            ch='\n';
         }
     }
     buf[i]='\0';
     return i;
 }
 
-void* accept_request(void* arg,FILE* log)
+static int 
+start_up(const char* ip,const char* port)
 {
-    //pthread_detach(pthread_self());
-    int sock=(int)arg;
-    int cgi=0;
-    char method[_COMM_SIZE_];
-    char url[_COMM_SIZE_];
-    char path[_COMM_SIZE_];
-    char version_http[_COMM_SIZE_];
-    char buf[_COMM_SIZE_];
-    char* query_string=NULL;
-    memset(method,'\0',sizeof(method));
-    memset(url,'\0',sizeof(url));
-    memset(path,'\0',sizeof(path));
-    memset(version_http,'\0',sizeof(version_http));
-    memset(buf,'\0',sizeof(buf));
-    int i=0,j=0;
-    int ret=0;
-
-    ret=get_line(sock,buf,sizeof(buf));
-    if(ret==-1)
+    if(NULL==ip || NULL==port)
+        return -1;
+    int listen_sock=socket(AF_INET,SOCK_STREAM,0);
+    if(listen_sock<0)
     {
-        perror("get_line");
+        perror("socket");
         exit(1);
     }
-    while(j<sizeof(buf) && i<sizeof(method)-1 && !ISSPACE(buf[j]))
+    int flag=1;
+    setsockopt(listen_sock,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag));
+    struct sockaddr_in local;
+    local.sin_family=AF_INET;
+    local.sin_port=htons(atoi(port));
+    local.sin_addr.s_addr=inet_addr(ip);
+    if(bind(listen_sock,(struct sockaddr*)&local,sizeof(local))<0)
     {
-        method[i++]=buf[j++];
+        perror("bind");
+        exit(1);
     }
-    method[i]='\0';
-    while(j<sizeof(buf) && ISSPACE(buf[j]) && j++);
-    i=0;
-    while(j<sizeof(buf) && i<sizeof(url)-1 && !ISSPACE(buf[j]))
+    //if(listen(listen_sock,5)<0)
+    if(listen(listen_sock,1)<0)
     {
-        url[i++]=buf[j++];
+        perror("listen");
+        exit(1);
     }
-    while(j<sizeof(buf) && ISSPACE(buf[j]) && j++);
-    i=0;
-    while(i<sizeof(buf) && i<sizeof(url)-1 && version_http[i-1]!='\n')
+    return listen_sock;
+}
+static const char* 
+get_config(const char* head,char* buf)
+{
+    FILE* conf=fopen(ConfigName,"r");
+    if(NULL==conf)
     {
-        version_http[i++]=buf[j++];
+        perror("config file");
+        exit(1);
     }
-    if(version_http[strlen(version_http)-1]=='\n')
-        version_http[strlen(version_http)-1]='\0';
-    i=0;
-    while(i<strlen(url) && url[i]!='?')
-        i++;
-    if(url[i]=='?')
+    char line[CONFIG_SIZE];
+    memset(line,'\0',sizeof(line));
+    while(NULL!=fgets(line,sizeof(line),conf))
     {
-        url[i]='\0';
-        if(url[i+1]!='\0')
+        size_t length=strlen(line);
+        if(line[length-1]=='\n'||line[length-1]=='\0')
+            line[length-1]='\0';
+        int i;
+        for(i=0;i<length;++i)
         {
-            cgi=1;
-            query_string=url+i+1;
+            if(line[i]==':')
+            {
+                line[i]='\0';
+                if(0==strncasecmp(line,head,strlen(head)))
+                {
+                    sprintf(buf,"%s",line+i+1);
+                    fclose(conf);
+                    return (void*)1;
+                }
+            }
         }
     }
-    if(url[strlen(url)-1]=='/')
-    {
-        sprintf(path,"htdocs%s",url);
-    }
-    else
-        sprintf(path,"htdocs%s",url);
-#ifdef _DEBUG_
-    printf("method: %s\nurl: %s\nquery_string: %s\nversion_http: %s\npath: %s\n\n",method,url,query_string,version_http,path);
-#endif
-    if(strcasecmp(method,"get")!=0&&strcasecmp(method,"post")!=0)
-    {
-        echo_error_to_client(sock,400);
-        return (void*)-1;
-    }
-    if(strcasecmp(method,"get")==0)//method is get
-    {
-        if(query_string!=NULL)
-        {
-            cgi=1;
-        }
-    }
-    else//method is post
-    {
-        cgi=1;
-    }
-    struct stat st;
-    if(stat(path,&st)<0)//file is not exist
-    {
-        clear_header(sock);
-        echo_error_to_client(sock,404);
-    }
-    else
-    {
-        if(S_ISDIR(st.st_mode))
-        {
-            strcat(path,"/");
-            strcat(path,"index.html");
-        }
-        else if(st.st_mode & S_IXUSR || st.st_mode & S_IXGRP || st.st_mode & S_IXOTH)
-        {
-            cgi=1;
-        }
-        else
-        {
-        }
-        if(cgi)
-        {
-            exe_cgi(sock,path,method,query_string,log);
-        }
-        else
-        {
-            clear_header(sock);
-            echo_html(sock,path,st.st_size,log);
-        }
-    }
-    close(sock);
-    //PRINT_IN_LOG("close client",log);
+    fclose(conf);
     return NULL;
 }
-void clear_header(int sock)
+int setnonblocking(int fd)
 {
-    char buf[_COMM_SIZE_];
-    int ret=0;
-    memset(buf,'\0',sizeof(buf));
-    do
-    {
-        ret=get_line(sock,buf,sizeof(buf));
-    }while(ret>0&&buf[0]!='\n');
-    //while(ret>0&&strcmp(buf,'\n')!=0);
+    int old_option=fcntl(fd,F_GETFL);
+    int new_option=old_option|O_NONBLOCK;
+    fcntl(fd,F_SETFL,new_option);
+    return old_option;
 }
-void exe_cgi(int sock,const char *path,const char*method,const char*query_string,FILE* log)
-{
-    char buf[_COMM_SIZE_];
-    int ret=1;
-    int content_length=0;
-    int cgi_input[2],cgi_output[2];
-    int id;
-    int i;
 
-    if(strcasecmp(method,"get")==0)
-    {
-        clear_header(sock);
-    }
-    else if(strcasecmp(method,"post")==0)
-    {
-        while(ret>0&&strncmp(buf,"Content-Length:",strlen("Content-Length:"))!=0)
-        {
-            ret=get_line(sock,buf,sizeof(buf));
-        }
-        clear_header(sock);
-        if(ret<=0)
-        {
-            bad_request(sock);
-            return;
-        }
-        content_length=atoi(buf);
-    }
-    memset(buf,'\0',sizeof(buf));
-    sprintf(buf,"HTTP/1.0 200 OK\r\n\r\n");
-    send(sock,buf,strlen(buf),0);
-    //ret=pipe(cgi_input);
-    //if(ret!=0)
-    //{
-    //    cannot_execute(sock);
-    //}
-    //ret=pipe(cgi_output);
-    //if(ret!=0)
-    //{
-    //    cannot_execute(sock);
-    //}
-    id=fork();
+static int write_log(const char* func,int line,const char* ptr)
+{
+#ifdef LOG
+    sprintf(log_buf,"file: %s,function: %s,line: %d : %s\n",__FILE__,func,line,ptr);
+    fwrite(log_buf,1,strlen(log_buf),log_file);
+#endif
+    return 1;
+}
+
+void exe_php(const char* code,char* outresult)
+{
+    int fd[2];
+    pipe(fd);
+    pid_t id=fork();
     if(id<0)
     {
-        cannot_execute(sock);
+        perror("fork");
+        return;
     }
-    if(id==0)//child
+    else if(id==0)
     {
-        char method_env[_COMM_SIZE_];
-        char query_string_env[_COMM_SIZE_];
-        char length_env[_COMM_SIZE_];
-        //close(cgi_input[1]);
-        //close(cgi_output[0]);
-        //dup2(cgi_input[0],0);
-        //dup2(cgi_output[1],1);
-        dup2(sock,0);
-        //PRINT_IN_LOG("dup2 sock,0",log);
-        dup2(sock,1);
-        //PRINT_IN_LOG("dup2 sock,1",log);
-        memset(method_env,'\0',sizeof(method_env));
-        sprintf(method_env,"REQUEST_METHOD=%s\n",method);
-        putenv(method_env);
-        if(strcasecmp(method,"get")==0)
-        {
-            memset(query_string_env,'\0',sizeof(query_string));
-            sprintf(query_string_env,"QUERY_STRING=%s\n",query_string);
-            putenv(query_string_env);
-        }
-        else
-        {
-            memset(length_env,'\0',sizeof(length_env));
-            sprintf(length_env,"CONTENT_LENGTH=%d\n",content_length);
-            putenv(length_env);
-        }
-        execl(path,path,NULL);
+        FILE* tmp=fopen("tmp.php","w");
+        fwrite(code,1,FILE_SIZE,tmp);
+        fclose(tmp);
+        dup2(1,fd[0]);
+        execl("/usr/bin/php","tmp.php");
+        /////////////////
+        printf("debugdebugdebugdebug\n");
         exit(1);
     }
-    else//father
+    else
     {
-        //char c;
-        //close(cgi_input[0]);
-        //close(cgi_output[1]);
-        //if(strcasecmp("post",method)==0)
-        //{
-        //    for(i=0;i<content_length;++i)
-        //    { 
-        //        recv(sock,&c,1,0);
-        //        write(cgi_input[1],&c,1);
-        //    }
-        //}
-        //while(read(cgi_output[0],&c,1)>0)
-        //{
-        //    send(sock,&c,1,0);
-        //}
-        //send(sock,"\r\n",strlen("\r\n"),0);
-        //close(cgi_input[1]);
-        //close(cgi_output[0]);
+        read(fd[1],outresult,FILE_SIZE-1);
+        printf("outresult:%s\n",outresult);
         waitpid(id,NULL,0);
-    }
-}
-void echo_html(int sock,const char* path,ssize_t size,FILE* log)
-{
-    if(path==NULL)
-    {
-        return;
-    }
-    int fd=open(path,O_RDONLY);
-    //PRINT_IN_LOG("open html",log);
-    if(fd<0)
-    {
-        echo_error_to_client(sock,500);
-        return;
-    }
-    char buf[_COMM_SIZE_];
-    memset(buf,'\0',sizeof(buf));
-    strncpy(buf,"HTTP/1.1",strlen("HTTP/1.1")+1);
-    //strcat(buf," 200 OK");
-    strcat(buf,"\r\n\r\n");
-    send(sock,buf,strlen(buf),0);
-    //send(sock,"\r\n",strlen("\r\n"),0);
-    if(sendfile(sock,fd,NULL,size)<0)
-    {
-        close(fd);
-        printf("error:%s\n",strerror(errno));
-        //PRINT_IN_LOG("close html",log);
-        return;
-    }
-    close(fd);
-    //PRINT_IN_LOG("close html",log);
-}
-/******************************************************ot:*
- * Give a client a 400 bad request status message.
- * *****************************************************/
-void bad_request(int sock)
-{
-    char buf[1024];
-    sprintf(buf,"HTTP/1.1 400 BAD REQUEST\r\n");
-    send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"Content_type: text/html\r\n");
-    //send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"\r\n");
-    //send(sock,buf,sizeof(buf),0);
-    //sprintf(buf,"<p>you enter message is a bad request!\r\n</p>");
-    //send(sock,buf,sizeof(buf),0);
-}
-/*********************************************************
- * Give a client a 404 not found status message.
- * ******************************************************/
-void not_found(int client)
-{
-    char buf[1024];
-    sprintf(buf,"HTTP/1.1 404 NOT FOUND\r\n\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,SERVER_STRING);
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"Content-Type: text/html\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"<html><title>Not Found</title>\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"<body><p>The server could not fulfill\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"you request not found because the resource specified is unavailable or nonexistent.\r\n");
-    send(client,buf,sizeof(buf),0);
-    sprintf(buf,"</body></html>\r\n");
-    send(client,buf,sizeof(buf),0);
-}
-/*********************************************************
- * Give a client a 500 cannot execute status message.
- * ******************************************************/
-void cannot_execute(int sock)
-{
-    char buf[1024];
-    sprintf(buf,"HTTP/1.1 500 Internal Server Error\r\n");
-    send(sock,buf,sizeof(buf),0);
-    sprintf(buf,"Content-type: text/html\r\n");
-    send(sock,buf,sizeof(buf),0);
-    sprintf(buf,"\r\n");
-    send(sock,buf,sizeof(buf),0);
-    sprintf(buf,"<p>Error prohibited CGI execution.\r\n</p>");
-    send(sock,buf,sizeof(buf),0);
-}
-/*********************************************************
- * Give a client a 501 uniplemented status message.
- * ******************************************************/
-void unimplemented(int sock)
-{
-    char buf[1024];
-    sprintf(buf,"HTTP/1.1 501 Method Not Implemented\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,SERVER_STRING);
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"Content-Type: text/htlm\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"<html><head><title>Method Not Implemented\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"</title></head>\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"<body><p>HTTP request method not supported.\r\n");
-    send(sock,buf,strlen(buf),0);
-    sprintf(buf,"</body></html>\r\n");
-    send(sock,buf,strlen(buf),0);
-}
-void echo_error_to_client(int sock,int error_code)
-{
-    switch(error_code)
-    {
-        case 400://Bad Request
-            bad_request(sock);
-            break;
-        case 404://Not Found
-            not_found(sock);
-            break;
-        case 500://Cannot Execute
-            cannot_execute(sock);
-            break;
-        case 501://Unimplemented
-            unimplemented(sock);
-            break;
-        default:
-            break;
     }
 }

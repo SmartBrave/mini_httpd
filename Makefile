@@ -1,22 +1,20 @@
 PWD=$(shell pwd)
-CGI_PATH=$(PWD)/cgi_bin
+CGI_BIN=$(PWD)/cgi_bin
 SER_BIN=httpd
-CLI_BIN=client
 SER_SRC=httpd.c
 CLI_SRC=client.c
-INCLUDE=.
-CC=gcc
+CLI_BIN=client
 FLAGS=-o
-LDFLAGS=-lpthread#-static
-LIB=
+LDFLAGS=-lpthread -g -DEPOLL -DLOG -DDEBUG #-DTHREADPOLL  -DMULTITHREAD 
+CC=gcc
 
 .PHONY:all
-all:$(SER_BIN) $(CLI_BIN) cgi
+all:$(SER_BIN) $(CLI_BIN) sql cgi 
 
 $(SER_BIN):$(SER_SRC)
-	$(CC) $(FLAGS) $@ $^ $(LDFLAGS) -D_DEBUG_ -g -rdynamic
+	$(CC) $(FLAGS) $@ $^ $(LDFLAGS)
 $(CLI_BIN):$(CLI_SRC)
-	$(CC) $(FLAGS) $@ $^ $(LDFLAGS) -D_DEBUG_ -g
+	$(CC) $(FLAGS) $@ $^ $(LDFLAGS)
 
 .PHONY:cgi
 cgi:
@@ -28,44 +26,48 @@ cgi:
 		cd ..;\
 	done
 
+.PHONY:sql
+sql:
+	cd sql_connect;\
+	make;
+
 .PHONY:output
-output: all
+output:all
+	cd sql_connect;\
+	make output;\
+	cd ..;\
 	mkdir -p output/htdocs/cgi_bin
-	cp httpd output
-	cp client output
+	#mkdir -p output/htdocs/include
+	cp $(SER_BIN) output
+	cp $(CLI_BIN) output
+	cp autostart.sh output
 	cp -rf conf output
 	cp -rf log output
 	cp -rf htdocs/* output/htdocs
-	for name in `ls -F cgi_bin/| grep '/$$'`;\
+	for name in `ls -F cgi_bin/|grep '/$$'`;\
 	do\
-		echo `pwd`;\
-		echo $$name;\
 		cd cgi_bin;\
 		cd $$name;\
 		make output;\
 		cd ../../;\
 	done;\
-	cd sql_connect;\
-	make output;\
-	cd ..;\
+
 
 .PHONY:clean
 clean:
 	rm -rf $(SER_BIN) $(CLI_BIN) output
-	cd cgi_bin;\
-	for name in `ls -F | grep '/$$'`;\
+	for name in `ls -F cgi_bin/| grep '/$$'`;\
 	do\
-		cd $$name;\
+		cd cgi_bin/$$name;\
 		make clean;\
-		cd ..;\
+		cd ../..;\
 	done
 	cd sql_connect;\
 	make clean;\
 	cd ..;\
 
-
 .PHONY:git
 git:clean
 	git add *
-	git commit -m "`date +%y/%m/%d/%R`" 
+	git commit -m "`date +%Y-%m-%d-%H-%M-%S`"
 	git push -u origin master

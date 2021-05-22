@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+    <style>
+        html,body{
+        margin:0px;
+        height:100%;
+        }
+        #bg{
+        width:100%;
+        height:100%;
+        margin:0px auto;
+        background-color:blue;
+        }
+    </style>
+    <body bgcolor="red">
+        <div id="bg">
+        </div>
+    </body>
+</html>

@@ -1,11 +1,13 @@
-all:calc
-calc:calc.cpp
+.PHONY:all
+all:add
+
+add:add.cpp
 	g++ -o $@ $^ -g
 
 .PHONY:output
 output:all
-	cp calc ../../output/htdocs/cgi_bin
+	cp add ../../output/htdocs/cgi_bin
 
 .PHONY:clean
 clean:
-	rm -rf calc
+	rm -rf add
